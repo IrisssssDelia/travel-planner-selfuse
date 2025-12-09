@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>My Travel App</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Vue 3 -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    
+    <style>
+        body {
+            background-color: #f0f4f8; /* 淺灰藍背景 */
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+        /* 隱藏滾動條但保持功能 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+    </style>
+</head>
+<body>
+
+<div id="app" class="max-w-md mx-auto bg-white h-screen flex flex-col shadow-2xl overflow-hidden relative">
+    
+    <!-- 頂部標題欄 -->
+    <header class="bg-blue-600 text-white p-6 pt-12 rounded-b-3xl shadow-md z-10 shrink-0">
+        <div class="flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold">{{ currentTitle }}</h1>
+                <p class="text-blue-100 text-sm opacity-90">{{ currentDate }}</p>
+            </div>
+            <div class="bg-white/20 p-2 rounded-full">
+                <i :class="currentIcon + ' text-xl'"></i>
+            </div>
+        </div>
+    </header>
+
+    <!-- 主要內容區域 (可滾動) -->
+    <main class="flex-1 overflow-y-auto p-4 pb-24 no-scrollbar bg-slate-50">
+        
+        <!-- 1. 行程表 (Itinerary) -->
+        <div v-if="activeTab === 'schedule'" class="space-y-4">
+            <div v-for="(item, index) in schedule" :key="index" class="bg-white p-4 rounded-2xl shadow-sm border-l-4 border-blue-500 flex items-center gap-4">
+                <div class="text-center min-w-[60px]">
+                    <div class="text-lg font-bold text-gray-800">{{ item.time }}</div>
+                    <div class="text-xs text-blue-500 font-medium bg-blue-50 px-2 py-1 rounded-full mt-1">
+                        <i class="fa-solid fa-cloud-sun"></i> {{ item.weather }}
+                    </div>
+                </div>
+                <div class="flex-1">
+                    <h3 class="font-bold text-gray-800">{{ item.activity }}</h3>
+                    <p class="text-xs text-gray-500"><i class="fa-solid fa-location-dot mr-1"></i>{{ item.location }}</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 2. 地圖導航 (Map) -->
+        <div v-if="activeTab === 'map'" class="space-y-4">
+            <div class="bg-blue-50 p-4 rounded-2xl border border-blue-100 mb-4">
+                <h3 class="font-bold text-blue-800 mb-2">快速導航</h3>
+                <p class="text-sm text-blue-600 mb-4">點擊下方地點直接開啟 Google Maps</p>
+            </div>
+
+            <div v-for="(loc, index) in locations" :key="index" class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center">
+                <div class="flex items-center gap-3">
+                    <div class="bg-blue-100 w-10 h-10 rounded-full flex items-center justify-center text-blue-600">
+                        <i class="fa-solid fa-map-pin"></i>
+                    </div>
+                    <div>
+                        <h3 class="font-bold text-gray-800">{{ loc.name }}</h3>
+                        <p class="text-xs text-gray-500">{{ loc.address }}</p>
+                    </div>
+                </div>
+                <a :href="'https://www.google.com/maps/dir/?api=1&destination=' + encodeURIComponent(loc.name)" target="_blank" class="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg active:scale-95 transition">
+                    <i class="fa-solid fa-location-arrow"></i>
+                </a>
+            </div>
+        </div>
+
+        <!-- 3. 記帳功能 (Expenses) -->
+        <div v-if="activeTab === 'expenses'" class="space-y-6">
+            <!-- 總支出卡片 -->
+            <div class="bg-gradient-to-r from-blue-500 to-blue-600 p-6 rounded-3xl text-white shadow-lg">
+                <p class="text-blue-100 text-sm">總支出</p>
+                <h2 class="text-3xl font-bold mt-1">$ {{ totalExpenses }}</h2>
+            </div>
+
+            <!-- 輸入表單 -->
+            <div class="bg-white p-5 rounded-2xl shadow-sm">
+                <h3 class="font-bold text-gray-800 mb-4">新增支出</h3>
+                <div class="space-y-3">
+                    <input v-model="newExpense.desc" type="text" placeholder="項目名稱" class="w-full bg-gray-50 p-3 rounded-xl border-none focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                    <div class="flex gap-3">
+                        <input v-model.number="newExpense.amount" type="number" placeholder="金額" class="flex-1 bg-gray-50 p-3 rounded-xl border-none focus:ring-2 focus:ring-blue-500 outline-none text-sm">
+                        <!-- 下拉選單 -->
+                        <select v-model="newExpense.type" class="flex-1 bg-gray-50 p-3 rounded-xl border-none focus:ring-2 focus:ring-blue-500 outline-none text-sm text-gray-600">
+                            <option value="現金">現金</option>
+                            <option value="信用卡">信用卡</option>
+                        </select>
+                    </div>
+                    <button @click="addExpense" class="w-full bg-blue-600 text-white p-3 rounded-xl font-bold shadow-md active:scale-95 transition">記帳</button>
+                </div>
+            </div>
+
+            <!-- 支出列表 -->
+            <div class="space-y-3">
+                <h3 class="font-bold text-gray-800 ml-1">最近紀錄</h3>
+                <div v-for="(exp, index) in expenses" :key="index" class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center">
+                    <div class="flex items-center gap-3">
+                        <div :class="exp.type === '信用卡' ? 'bg-purple-100 text-purple-600' : 'bg-green-100 text-green-600'" class="w-10 h-10 rounded-full flex items-center justify-center text-sm">
+                            <i :class="exp.type === '信用卡' ? 'fa-regular fa-credit-card' : 'fa-solid fa-coins'"></i>
+                        </div>
+                        <div>
+                            <p class="font-bold text-gray-800">{{ exp.desc }}</p>
+                            <p class="text-xs text-gray-400">{{ exp.date }}</p>
+                        </div>
+                    </div>
+                    <span class="font-bold text-gray-800">- ${{ exp.amount }}</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 4. 購物清單 (Shopping) -->
+        <div v-if="activeTab === 'shopping'" class="space-y-4">
+            <div class="flex gap-2">
+                <input v-model="newItem" @keyup.enter="addItem" type="text" placeholder="想買什麼？" class="flex-1 bg-white p-4 rounded-2xl shadow-sm border-none focus:ring-2 focus:ring-blue-500 outline-none">
+                <button @click="addItem" class="bg-blue-600 text-white w-14 rounded-2xl shadow-md flex items-center justify-center text-xl">
+                    <i class="fa-solid fa-plus"></i>
+                </button>
+            </div>
+
+            <div class="space-y-2">
+                <div v-for="(item, index) in shoppingList" :key="index" class="bg-white p-4 rounded-2xl shadow-sm flex items-center gap-3 transition-all" :class="{'opacity-50': item.done}">
+                    <div @click="item.done = !item.done" class="w-6 h-6 rounded-full border-2 border-blue-500 flex items-center justify-center cursor-pointer transition-colors" :class="{'bg-blue-500': item.done}">
+                        <i v-if="item.done" class="fa-solid fa-check text-white text-xs"></i>
+                    </div>
+                    <span :class="{'line-through text-gray-400': item.done}" class="text-gray-800 font-medium flex-1">{{ item.text }}</span>
+                    <button @click="deleteItem(index)" class="text-red-400 hover:text-red-600 px-2"><i class="fa-solid fa-trash"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 5. 巴士時間表 (Bus) -->
+        <div v-if="activeTab === 'bus'" class="space-y-4">
+            <div class="bg-blue-600 text-white p-4 rounded-2xl shadow-md mb-4">
+                <h3 class="font-bold text-lg"><i class="fa-solid fa-bus mr-2"></i>附近站牌</h3>
+                <p class="text-blue-200 text-sm">彌敦道, 旺角站</p>
+            </div>
+
+            <div v-for="(bus, index) in busSchedule" :key="index" class="bg-white p-4 rounded-2xl shadow-sm flex justify-between items-center border-l-4" :class="bus.eta <= 5 ? 'border-green-500' : 'border-blue-500'">
+                <div class="flex items-center gap-4">
+                    <div class="bg-gray-100 px-3 py-1 rounded-lg font-black text-xl text-gray-700 min-w-[60px] text-center">
+                        {{ bus.route }}
+                    </div>
+                    <div>
+                        <p class="text-xs text-gray-400">往</p>
+                        <p class="font-bold text-gray-800">{{ bus.dest }}</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <p class="text-2xl font-bold" :class="bus.eta <= 5 ? 'text-green-600' : 'text-blue-600'">{{ bus.eta }}</p>
+                    <p class="text-xs text-gray-400">分鐘</p>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- 底部導航欄 -->
+    <nav class="bg-white p-2 pb-6 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] flex justify-around items-center rounded-t-3xl z-20 shrink-0">
+        <button @click="activeTab = 'schedule'" :class="activeTab === 'schedule' ? 'text-blue-600' : 'text-gray-400'" class="flex flex-col items-center p-2 w-16 transition">
+            <i class="fa-solid fa-calendar-day text-xl mb-1"></i>
+            <span class="text-[10px] font-medium">行程</span>
+        </button>
+        <button @click="activeTab = 'map'" :class="activeTab === 'map' ? 'text-blue-600' : 'text-gray-400'" class="flex flex-col items-center p-2 w-16 transition">
+            <i class="fa-solid fa-map-location-dot text-xl mb-1"></i>
+            <span class="text-[10px] font-medium">地圖</span>
+        </button>
+        
+        <!-- 中央記帳按鈕 -->
+        <button @click="activeTab = 'expenses'" class="bg-blue-600 text-white w-14 h-14 rounded-full flex items-center justify-center shadow-lg -mt-8 border-4 border-gray-50 active:scale-95 transition">
+            <i class="fa-solid fa-wallet text-xl"></i>
+        </button>
+
+        <button @click="activeTab = 'shopping'" :class="activeTab === 'shopping' ? 'text-blue-600' : 'text-gray-400'" class="flex flex-col items-center p-2 w-16 transition">
+            <i class="fa-solid fa-cart-shopping text-xl mb-1"></i>
+            <span class="text-[10px] font-medium">購物</span>
+        </button>
+        <button @click="activeTab = 'bus'" :class="activeTab === 'bus' ? 'text-blue-600' : 'text-gray-400'" class="flex flex-col items-center p-2 w-16 transition">
+            <i class="fa-solid fa-bus-simple text-xl mb-1"></i>
+            <span class="text-[10px] font-medium">巴士</span>
+        </button>
+    </nav>
+
+</div>
+
+<script>
+    const { createApp, ref, computed } = Vue;
+
+    createApp({
+        setup() {
+            const activeTab = ref('schedule');
+            
+            // 1. 行程數據 (模擬天氣)
+            const schedule = ref([
+                { time: '09:00', activity: '酒店早餐', location: '尖沙咀凱悅酒店', weather: '24°C' },
+                { time: '10:30', activity: '參觀M+博物館', location: '西九文化區', weather: '26°C' },
+                { time: '13:00', activity: '午餐 - 點心', location: '添好運', weather: '27°C' },
+                { time: '15:00', activity: '購物行程', location: '海港城', weather: '26°C' },
+                { time: '19:00', activity: '維港夜景', location: '星光大道', weather: '23°C' },
+            ]);
+
+            // 2. 地點數據 (用於導航)
+            const locations = ref([
+                { name: '香港迪士尼樂園', address: '大嶼山' },
+                { name: '太平山頂', address: '中環花園道' },
+                { name: '女人街', address: '旺角通菜街' },
+            ]);
+
+            // 3. 記帳數據
+            const expenses = ref([
+                { desc: '八達通增值', amount: 500, type: '現金', date: '10/24' },
+                { desc: '晚餐', amount: 320, type: '信用卡', date: '10/24' },
+            ]);
+            const newExpense = ref({ desc: '', amount: '', type: '現金' });
+
+            const totalExpenses = computed(() => {
+                return expenses.value.reduce((sum, item) => sum + item.amount, 0);
+            });
+
+            const addExpense = () => {
+                if(!newExpense.value.desc || !newExpense.value.amount) return;
+                expenses.value.unshift({
+                    desc: newExpense.value.desc,
+                    amount: newExpense.value.amount,
+                    type: newExpense.value.type,
+                    date: new Date().toLocaleDateString('zh-HK', {month:'2-digit', day:'2-digit'})
+                });
+                newExpense.value = { desc: '', amount: '', type: '現金' };
+            };
+
+            // 4. 購物清單
+            const shoppingList = ref([
+                { text: '曲奇餅', done: false },
+                { text: '藥妝', done: true },
+            ]);
+            const newItem = ref('');
+            const addItem = () => {
+                if(!newItem.value) return;
+                shoppingList.value.push({ text: newItem.value, done: false });
+                newItem.value = '';
+            };
+            const deleteItem = (index) => {
+                shoppingList.value.splice(index, 1);
+            };
+
+            // 5. 巴士數據 (模擬)
+            const busSchedule = ref([
+                { route: '1A', dest: '中秀茂坪', eta: 2 },
+                { route: '6', dest: '荔枝角', eta: 8 },
+                { route: '234X', dest: '荃灣(灣景)', eta: 15 },
+            ]);
+
+            // 標題邏輯
+            const currentTitle = computed(() => {
+                const titles = {
+                    schedule: '今日行程',
+                    map: '地圖導航',
+                    expenses: '旅行記帳',
+                    shopping: '購物清單',
+                    bus: '巴士到站'
+                };
+                return titles[activeTab.value];
+            });
+
+            const currentIcon = computed(() => {
+                const icons = {
+                    schedule: 'fa-solid fa-calendar-day',
+                    map: 'fa-solid fa-map-location-dot',
+                    expenses: 'fa-solid fa-wallet',
+                    shopping: 'fa-solid fa-cart-shopping',
+                    bus: 'fa-solid fa-bus-simple'
+                };
+                return icons[activeTab.value];
+            });
+
+            const currentDate = new Date().toLocaleDateString('zh-HK', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+            return {
+                activeTab,
+                schedule,
+                locations,
+                expenses,
+                newExpense,
+                addExpense,
+                totalExpenses,
+                shoppingList,
+                newItem,
+                addItem,
+                deleteItem,
+                busSchedule,
+                currentTitle,
+                currentIcon,
+                currentDate
+            };
+        }
+    }).mount('#app');
+</script>
+
+</body>
+</html>
